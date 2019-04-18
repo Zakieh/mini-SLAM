@@ -12,10 +12,15 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   sensor_msgs
   std_msgs
+  pcl_ros
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
+
+find_package(PCL REQUIRED)
+
+include_directories(${PCL_INCLUDE_DIRS})
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -149,6 +154,7 @@ add_executable(${PROJECT_NAME}_first_node src/first_node.cpp)
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}_first_node
    ${catkin_LIBRARIES}
+   ${PCL_LIBRARIES}
 )
 
 #############

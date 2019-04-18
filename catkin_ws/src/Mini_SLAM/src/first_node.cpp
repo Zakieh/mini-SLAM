@@ -1,6 +1,10 @@
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include "sensor_msgs/PointCloud2.h"
+#include <pcl/point_types.h>
+#include <pcl/io/pcd_io.h>
+
+
 
 
 class robot_world
@@ -41,7 +45,7 @@ public:
 		world_map[9][8] = 0;
 
 		//initializing robot first pose
-		robot_x = 8;
+		robot_x = 9;
 		robot_y = 7;
 		robot_orientation.first = -1; //regarding our map coordinate frame which (0,0) is at the top left
 		robot_orientation.second = 0; 
@@ -52,7 +56,7 @@ public:
     
     void run();
     void update_robot_pose();
-    void publish_pointcloud();
+    void create_publish_pointcloud(int, int, int, int);
    
 };
 
@@ -98,14 +102,64 @@ void robot_world::run()
     		}
     	}
 
-    	std::cout << min_cover_x << " " << min_cover_y << " " << max_cover_x << " " << max_cover_y << std::endl;
+    	//std::cout << min_cover_x << " " << min_cover_y << " " << max_cover_x << " " << max_cover_y << std::endl;
 
+    	// now we construct the point cloud using the boundaries
+		create_publish_pointcloud(min_cover_x, max_cover_x, min_cover_y, max_cover_y);
 		loop_rate.sleep();
 	    
     }
 
 }
-void robot_world::publish_pointcloud()
+void robot_world::create_publish_pointcloud(int min_x, int max_x, int min_y, int max_y)
 {
+	sensor_msgs::PointCloud2 current_pointcloud;
+
+	//instead of filling out the sensor_msg manually, I create a pcl point cloud and convert it to PointCloud2 later on for simplicity
+	pcl::PointCloud<pcl::PointXYZ> cloud;
+
+	int count_obstacles = 0;
+	for (int i = min_x; i <= max_x; i++)
+	{
+		for (int j = min_y; j <= max_y; j++)
+		{
+			//std::cout << "borders " << i << " " << j << std::endl;
+
+				
+			if (world_map[i][j] == 1)
+			{
+				//std::cout << "1 is here " << i << " " << j << std::endl;
+				bool is_observable = false;
+				if (abs(robot_x-i) < 2 && abs(robot_y-j) < 2) //this shows we are in the closer square, don't need to worry about occlusion
+				{
+					is_observable = true;
+				}
+				else 
+				{
+
+					int current_x_check = i, current_y_check = j;
+					if (abs(robot_x-i)>1)
+						current_x_check = (robot_x > i)?robot_x-1:robot_x+1;
+					if (abs(robot_y-j)>1)
+						current_y_check = (robot_y > j)?robot_y-1:robot_y+1;
+
+					if (world_map[current_x_check][current_y_check] != 1)
+					{
+						is_observable = true;
+					}
+				}
+
+				if (is_observable)
+				{
+					pcl::PointXYZ obstacle;
+					obstacle.x = robot_x-i;
+					obstacle.y = robot_y-j;
+					cloud.push_back(obstacle);
+					count_obstacles++;
+					std::cout << "obstacle " << obstacle.x << " " << obstacle.y << std::endl; 
+				}
+			} 
+		}
+	}
 
 }
