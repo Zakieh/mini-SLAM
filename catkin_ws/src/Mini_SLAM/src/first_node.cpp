@@ -3,6 +3,7 @@
 #include "sensor_msgs/PointCloud2.h"
 #include <pcl/point_types.h>
 #include <pcl/io/pcd_io.h>
+#include <pcl_conversions/pcl_conversions.h>
 
 
 
@@ -116,15 +117,13 @@ void robot_world::create_publish_pointcloud(int min_x, int max_x, int min_y, int
 	sensor_msgs::PointCloud2 current_pointcloud;
 
 	//instead of filling out the sensor_msg manually, I create a pcl point cloud and convert it to PointCloud2 later on for simplicity
-	pcl::PointCloud<pcl::PointXYZ> cloud;
+	pcl::PointCloud<pcl::PointXYZ> *cloud = new pcl::PointCloud<pcl::PointXYZ>();
 
 	int count_obstacles = 0;
 	for (int i = min_x; i <= max_x; i++)
 	{
 		for (int j = min_y; j <= max_y; j++)
 		{
-			//std::cout << "borders " << i << " " << j << std::endl;
-
 				
 			if (world_map[i][j] == 1)
 			{
@@ -154,12 +153,19 @@ void robot_world::create_publish_pointcloud(int min_x, int max_x, int min_y, int
 					pcl::PointXYZ obstacle;
 					obstacle.x = robot_x-i;
 					obstacle.y = robot_y-j;
-					cloud.push_back(obstacle);
+					cloud->push_back(obstacle);
 					count_obstacles++;
 					std::cout << "obstacle " << obstacle.x << " " << obstacle.y << std::endl; 
 				}
 			} 
 		}
 	}
+
+	cloud->width = count_obstacles;
+  	cloud->height = 1;
+  	cloud->is_dense = false;
+
+	pcl::toROSMsg(*cloud, current_pointcloud);
+	pointcloud_pub.publish(msg);
 
 }
