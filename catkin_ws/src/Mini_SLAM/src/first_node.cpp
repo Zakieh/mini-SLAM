@@ -13,6 +13,7 @@ private:
 	int robot_orientation; 
 
 	ros::NodeHandle nh;	
+	ros::Publisher pointcloud_pub;
 
 public:
 
@@ -43,10 +44,14 @@ public:
 		robot_x = 9;
 		robot_y = 7;
 		robot_orientation = 0;
+
+		//initializing the publisher
+		pointcloud_pub = nh.advertise<sensor_msgs::PointCloud2>("cloud", 1000);
 	}
     
+    void run();
     void update_robot_pose();
-
+    void publish_pointcloud();
    
 };
 
@@ -55,4 +60,24 @@ int main(int argc, char **argv)
 	ros::init(argc, argv, "first_node");
 	
 	robot_world my_world;
+	my_world.run();
+}
+
+void robot_world::run()
+{
+
+	ros::Rate loop_rate(1);
+
+	while (ros::ok())
+    {
+	    
+
+		loop_rate.sleep();
+	    
+    }
+
+}
+void robot_world::publish_pointcloud()
+{
+
 }
