@@ -38,7 +38,7 @@ public:
 		world_map[3][3] = 1;
 		world_map[3][6] = 1;
 		world_map[4][0] = 0;
-		world_map[9][0] = 0;
+		world_map[4][9] = 0;
 		world_map[5][0] = 0;
 		world_map[6][3] = 1;
 		world_map[6][6] = 1;
@@ -74,7 +74,7 @@ void robot_world::run()
 
 	ros::Rate loop_rate(1);
 
-	while (ros::ok())
+	while (robot_orientation.second != 1 || robot_y != 8) // we continue until reaching the end point
     {
     	int min_cover_x = 10, max_cover_x = 0, min_cover_y = 10, max_cover_y = 0;
 	    
@@ -107,9 +107,12 @@ void robot_world::run()
 
     	// now we construct the point cloud using the boundaries
 		create_publish_pointcloud(min_cover_x, max_cover_x, min_cover_y, max_cover_y);
+		update_robot_pose();
 		loop_rate.sleep();
 	    
     }
+
+    ros::shutdown();
 
 }
 void robot_world::create_publish_pointcloud(int min_x, int max_x, int min_y, int max_y)
@@ -151,8 +154,16 @@ void robot_world::create_publish_pointcloud(int min_x, int max_x, int min_y, int
 				if (is_observable)
 				{
 					pcl::PointXYZ obstacle;
-					obstacle.x = robot_x-i;
-					obstacle.y = robot_y-j;
+					if (robot_orientation.first != 0) // when robot turns, the coordinates would be different in terms of relatively
+					{
+						obstacle.x = -robot_orientation.first * (robot_x-i);
+						obstacle.y = -robot_orientation.first * (robot_y-j);
+					}
+					else
+					{
+						obstacle.y = robot_orientation.second * (robot_x-i);
+						obstacle.x = -robot_orientation.second * (robot_y-j);
+					}
 					cloud->push_back(obstacle);
 					count_obstacles++;
 					std::cout << "obstacle " << obstacle.x << " " << obstacle.y << std::endl; 
@@ -166,6 +177,37 @@ void robot_world::create_publish_pointcloud(int min_x, int max_x, int min_y, int
   	cloud->is_dense = false;
 
 	pcl::toROSMsg(*cloud, current_pointcloud);
-	pointcloud_pub.publish(msg);
+	pointcloud_pub.publish(current_pointcloud);
+
+}
+void robot_world::update_robot_pose()
+{
+	bool turned = false;
+	if (robot_orientation.first == -1 && robot_x == 2) //we should turn left
+	{
+		turned = true;
+		robot_orientation.first = 0;
+		robot_orientation.second = -1;
+	}
+	else if (robot_orientation.second == -1 && robot_y == 2)
+	{
+		turned = true;
+		robot_orientation.first = 1;
+		robot_orientation.second = 0;
+	}
+	else if (robot_orientation.first == 1 && robot_x == 7)
+	{
+		turned = true;
+		robot_orientation.first = 0;
+		robot_orientation.second = 1;
+	}
+
+	if (!turned)
+	{
+		robot_x = robot_x + robot_orientation.first;
+		robot_y = robot_y + robot_orientation.second;
+	}
+
+	std::cout << "robot pose " << robot_x << " " << robot_y << std::endl;
 
 }
