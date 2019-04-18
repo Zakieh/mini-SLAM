@@ -10,7 +10,7 @@ private:
 	int world_map[10][10];
 	int robot_x;
 	int robot_y;
-	int robot_orientation; 
+	std::pair<int, int> robot_orientation; 
 
 	ros::NodeHandle nh;	
 	ros::Publisher pointcloud_pub;
@@ -41,9 +41,10 @@ public:
 		world_map[9][8] = 0;
 
 		//initializing robot first pose
-		robot_x = 9;
+		robot_x = 8;
 		robot_y = 7;
-		robot_orientation = 0;
+		robot_orientation.first = -1; //regarding our map coordinate frame which (0,0) is at the top left
+		robot_orientation.second = 0; 
 
 		//initializing the publisher
 		pointcloud_pub = nh.advertise<sensor_msgs::PointCloud2>("cloud", 1000);
@@ -70,7 +71,34 @@ void robot_world::run()
 
 	while (ros::ok())
     {
+    	int min_cover_x = 10, max_cover_x = 0, min_cover_y = 10, max_cover_y = 0;
 	    
+	    //at first step, we should find the sorrounding square using the current robot pose
+	    //We use vector dot multiplication for finding cells from -90 to 90 degree regarding current robot orientation
+
+    	for (int i = -2; i <= 2; i++)
+    	{
+    		for (int j = -2; j <= 2; j++)
+    		{
+    			if (robot_x+i >= 0 && robot_x+i < 10 && robot_y+j >=0 && robot_y+j < 10) // here we check boundaries
+    			{
+    				if ((i*robot_orientation.first)+(j*robot_orientation.second) >= 0) //here the dot multiplication happens
+    				{
+    					if (robot_x+i < min_cover_x)
+    						min_cover_x = robot_x + i;
+    					if (robot_x+i > max_cover_x)
+    						max_cover_x = robot_x + i;
+
+    					if (robot_y+j < min_cover_y)
+    						min_cover_y = robot_y + j;
+    					if (robot_y+j > max_cover_y)
+    						max_cover_y = robot_y + j;
+    				}
+    			}
+    		}
+    	}
+
+    	std::cout << min_cover_x << " " << min_cover_y << " " << max_cover_x << " " << max_cover_y << std::endl;
 
 		loop_rate.sleep();
 	    
