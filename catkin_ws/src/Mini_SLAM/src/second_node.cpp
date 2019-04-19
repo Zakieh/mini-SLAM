@@ -64,6 +64,7 @@ public:
     void scan_matcher();
     void turn_local_map(int**);
     bool write_to_file(Mini_SLAM::WriteToFile::Request&, Mini_SLAM::WriteToFile::Response&);
+    void update_occupancy_grid();
    
 };
 
@@ -79,22 +80,71 @@ int main(int argc, char **argv)
 void mini_SLAM::run()
 {
 	std::thread* thread1 = new std::thread(&mini_SLAM::detect_loop, this);
-	std::thread* thread2 = new std::thread(&mini_SLAM::bundle_adjustment, this);
 	ros::spin();
+	thread1->join();
 
 }
 void mini_SLAM::detect_loop()
-{}
+{
+	/*	int** local_map = new int*[5];
+	for (int i = 0 ; i < 5 ; i++)
+		local_map[i] = new int[5];
+
+	for (int i = 0; i < 5 ; i++)
+	{
+		for (int j = 0; j < 5 ; j++)
+			local_map[i][j] = -1;
+	}
+	local_map[2][2] = 0; //robot_pose
+   	
+   	int localmap_min_x = std::max(robot_x - 2, 0);
+	int localmap_min_y = std::max(robot_y - 2, 0);
+	int localmap_max_x = std::min(robot_x + 2, 9);
+	int localmap_max_y = std::min(robot_y + 2, 9);
+
+	for (int i = localmap_min_x ; i <= localmap_max_x ; i++)
+	{
+		for (int j = localmap_min_y; j <= localmap_max_y; j++)
+		{
+			local_map[i - localmap_min_x][j - localmap_min_y] = world_map[i][j];
+		}
+	}
+
+	std::cout << "================== local map =============" << std::endl;
+	for (int i = 0; i < 5; i++)
+	{
+		for (int j = 0; j < 5; j++)
+		{
+			std::cout << local_map[i][j] << " ";
+		}
+		std::cout << std::endl;
+	}
+
+	if (robot_orientation.second == -1) //we should turn the local map 90 degree clock wise for simpler scan matching
+	{
+		turn_local_map(local_map);
+	}
+	if (robot_orientation.first == 1) //we should turn the local map 180 degree clock wise
+	{
+		for (int i=0; i < 2 ; i++)
+			turn_local_map(local_map);
+	}
+	if (robot_orientation.second == 1) //we should turn the local map 270 degree clock wise
+	{
+		for (int i=0; i < 3 ; i++)
+			turn_local_map(local_map);
+	}
+		*/
+	std::thread* thread2 = new std::thread(&mini_SLAM::bundle_adjustment, this);
+	thread2->join();
+
+}
 void mini_SLAM::bundle_adjustment()
 {}
 void mini_SLAM::scanCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
 {
 	pcl::PointCloud<pcl::PointXYZ> pcl_cloud;
 	pcl::fromROSMsg(*msg, pcl_cloud);
-
-//	int current_sensor_reading[3][5] = {{-1, -1, -1, -1, -1},
-//										{-1, -1, -1, -1, -1},
-//										{-1, -1, 0, -1, -1}}; //the zero is robot index which is (2, 2)
 
 	int robot_pos_within_sensor_x = 2;
 	int robot_pos_within_sensor_y = 2;
@@ -149,7 +199,7 @@ void mini_SLAM::scanCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
 			} 
 		}
 	}
-	std::cout << "=================current reading =============" << std::endl;
+/*	std::cout << "=================current reading =============" << std::endl;
 	for (int i = 0 ; i < 3; i++)
 	{
 		for (int j = 0 ; j < 5; j++)
@@ -157,10 +207,13 @@ void mini_SLAM::scanCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
 			std::cout << current_sensor_reading[i][j] << " ";
 		}
 		std::cout << std::endl;
-	}
+	}*/
 
 	if (!first_map_fill)
+	{
 		scan_matcher();
+		update_occupancy_grid();
+	}
 
 	if (first_map_fill)
 	{
@@ -252,10 +305,12 @@ void mini_SLAM::scan_matcher()
 		if (robot_orientation.first != 0)
 		{
 			robot_orientation.second = robot_orientation.first;
+			robot_orientation.first = 0;
 		}
 		else
 		{
 			robot_orientation.first = -robot_orientation.second;
+			robot_orientation.second = 0;
 		}
 	}
 	else if (match_turn_right > match_forward && match_turn_right > match_turn_left)
@@ -264,10 +319,14 @@ void mini_SLAM::scan_matcher()
 		if (robot_orientation.first != 0)
 		{
 			robot_orientation.second = -robot_orientation.first;
+			robot_orientation.first = 0;
+
 		}
 		else
 		{
 			robot_orientation.first = robot_orientation.second;
+			robot_orientation.second = 0;
+
 		}
 	}
 
@@ -313,4 +372,68 @@ bool mini_SLAM::write_to_file(Mini_SLAM::WriteToFile::Request  &req, Mini_SLAM::
 
 	myfile.close();
 	std::cout << "Wrote global map to global_map.txt" << std::endl;
+}
+
+void mini_SLAM::update_occupancy_grid()
+{
+	if (robot_orientation.first == -1)
+	{
+		int world_start_x = robot_x - 2;
+		int world_start_y = robot_y - 2;
+
+		for(int i = 0 ; i <= 2; i++)
+		{
+			for(int j = 0 ; j <= 4; j++)
+			{
+				if (current_sensor_reading[i][j] != -1)
+					world_map[world_start_x+i][world_start_y+j] = current_sensor_reading[i][j];
+			}
+		}
+	}
+	else if (robot_orientation.first == 1)
+	{
+		int world_start_x = robot_x;
+		int world_start_y = robot_y - 2;
+
+		for(int i = 0 ; i <= 2; i++)
+		{
+			for(int j = 0 ; j <= 4; j++)
+			{
+				if (current_sensor_reading[i][j] != -1)
+					world_map[world_start_x+(2-i)][world_start_y+(4-j)] = current_sensor_reading[i][j];
+			}
+		}
+	}
+	else if (robot_orientation.second == -1)
+	{
+		int world_start_x = robot_x - 2;
+		int world_start_y = robot_y - 2;
+
+		for(int i = 0 ; i <= 2; i++)
+		{
+			for(int j = 0 ; j <= 4; j++)
+			{
+				if (current_sensor_reading[i][j] != -1)
+					world_map[world_start_x+(4-j)][world_start_y+i] = current_sensor_reading[i][j];
+			}
+		}
+	}
+	else 
+	{
+		int world_start_x = robot_x - 2;
+		int world_start_y = robot_y;
+
+		for(int i = 0 ; i <= 2; i++)
+		{
+			for(int j = 0 ; j <= 4; j++)
+			{
+				if (current_sensor_reading[i][j] != -1)
+					world_map[world_start_x+j][world_start_y+(2-i)] = current_sensor_reading[i][j];
+			}
+		}
+	}
+
+
+
+
 }
