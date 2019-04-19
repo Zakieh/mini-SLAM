@@ -5,6 +5,8 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <thread>
+#include "Mini_SLAM/WriteToFile.h"
+#include <fstream>
 
 
 class mini_SLAM
@@ -22,6 +24,8 @@ private:
 
 	ros::NodeHandle nh;	
 	ros::Subscriber pointcloud_sub;
+
+	ros::ServiceServer service;
 
 public:
 
@@ -45,6 +49,10 @@ public:
 
 		//initializing the subscriber
 		pointcloud_sub = nh.subscribe("cloud", 100, &mini_SLAM::scanCallback, this);
+
+		service = nh.advertiseService("write_to_file", &mini_SLAM::write_to_file, this);
+  
+  		ROS_INFO("Map Writing Server up and running.");
 	}
     
     void run();
@@ -54,6 +62,7 @@ public:
     void scanCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
     void scan_matcher();
     void turn_local_map(int**);
+    bool write_to_file(Mini_SLAM::WriteToFile::Request&, Mini_SLAM::WriteToFile::Response&);
    
 };
 
@@ -276,6 +285,38 @@ void mini_SLAM::scan_matcher()
 
 	std::cout << "costs " << match_forward << " " << match_turn_left << " " << match_turn_right << std::endl;
 
+
+	if (match_forward > match_turn_right && match_forward > match_turn_left)
+	{
+		std::cout << "move forward" << std::endl;
+		robot_x = robot_x + robot_orientation.first;
+		robot_y = robot_y + robot_orientation.second;
+	}
+	else if (match_turn_left > match_turn_right && match_turn_left > match_forward)
+	{
+		std::cout << "turn left" << std::endl;
+		if (robot_orientation.first != 0)
+		{
+			robot_orientation.second = robot_orientation.first;
+		}
+		else
+		{
+			robot_orientation.first = -robot_orientation.second;
+		}
+	}
+	else if (match_turn_right > match_forward && match_turn_right > match_turn_left)
+	{
+		std::cout << "turn right" << std::endl;
+		if (robot_orientation.first != 0)
+		{
+			robot_orientation.second = -robot_orientation.first;
+		}
+		else
+		{
+			robot_orientation.first = robot_orientation.second;
+		}
+	}
+
 }
 
 void mini_SLAM::turn_local_map(int** local_map)
@@ -300,4 +341,22 @@ void mini_SLAM::turn_local_map(int** local_map)
 		}
 		std::cout << std::endl;
 	}*/
+}
+
+bool mini_SLAM::write_to_file(Mini_SLAM::WriteToFile::Request  &req, Mini_SLAM::WriteToFile::Response  &response)
+{
+	std::ofstream myfile;
+    myfile.open ("global_map.txt");
+
+	for (int i = 0; i < 10; i++)
+	{
+		for (int j = 0; j < 10; j++)
+		{
+			myfile << world_map[i][j] << ",";
+		}
+		myfile << std::endl;
+	}
+
+	myfile.close();
+	std::cout << "Wrote global map to global_map.txt" << std::endl;
 }
