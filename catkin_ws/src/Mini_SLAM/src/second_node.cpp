@@ -16,6 +16,8 @@ private:
 	int robot_y;
 	std::pair<int, int> robot_orientation;
 
+	int current_sensor_reading[3][5];
+
 	bool first_map_fill; 
 
 	ros::NodeHandle nh;	
@@ -50,6 +52,8 @@ public:
     void bundle_adjustment();
     void update_robot_pose();
     void scanCallback(const sensor_msgs::PointCloud2::ConstPtr& msg);
+    void scan_matcher();
+    void turn_local_map(int**);
    
 };
 
@@ -78,14 +82,22 @@ void mini_SLAM::scanCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
 	pcl::PointCloud<pcl::PointXYZ> pcl_cloud;
 	pcl::fromROSMsg(*msg, pcl_cloud);
 
-	int current_sensor_reading[3][5] = {{-1, -1, -1, -1, -1},
-										{-1, -1, -1, -1, -1},
-										{-1, -1, 0, -1, -1}}; //the zero is robot index which is (2, 2)
+//	int current_sensor_reading[3][5] = {{-1, -1, -1, -1, -1},
+//										{-1, -1, -1, -1, -1},
+//										{-1, -1, 0, -1, -1}}; //the zero is robot index which is (2, 2)
 
 	int robot_pos_within_sensor_x = 2;
 	int robot_pos_within_sensor_y = 2;
 
+	for (int i = 0; i <= 2; i++) //here we reset the matrix
+	{
+		for (int j = 0; j <= 4; j++)
+		{
+			current_sensor_reading[i][j] = -1;
+		}
+	}
 
+	
 	for(int i = 0 ; i < pcl_cloud.points.size(); i++) //here we fill out the ones
 	{
 		int obstacle_x = robot_pos_within_sensor_x - pcl_cloud.points[i].x;
@@ -127,7 +139,7 @@ void mini_SLAM::scanCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
 			} 
 		}
 	}
-	std::cout << "==============================" << std::endl;
+	std::cout << "=================current readin =============" << std::endl;
 	for (int i = 0 ; i < 3; i++)
 	{
 		for (int j = 0 ; j < 5; j++)
@@ -137,19 +149,155 @@ void mini_SLAM::scanCallback(const sensor_msgs::PointCloud2::ConstPtr& msg)
 		std::cout << std::endl;
 	}
 
-/*	if (first_map_fill)
+	if (!first_map_fill)
+		scan_matcher();
+
+	if (first_map_fill)
 	{
 		first_map_fill = false;
 
-		int obstacle_x, obstacle_y;
-		for(int i = 0 ; i < pcl_cloud.points.size(); i++)
+		int world_start_x = robot_x - 2;
+		int world_start_y = robot_y - 2;
+
+		for(int i = world_start_x ; i <= world_start_x + 2; i++)
 		{
-			obstacle_x = (robot_orientation.first * pcl_cloud.points[i]) + robot_x;
-			obstacle_y = (robot_orientation.first * pcl_cloud.points[i]) + robot_x;
-			world_map[obstacle_x][obstacle_y] = 1;
+			for(int j = world_start_y ; j <= world_start_y + 4; j++)
+				world_map[i][j] = current_sensor_reading[i - world_start_x][j - world_start_y];
 		}
-	}*/
+
+/*		std::cout << "==============================map=========" << std::endl;
+		for (int i = 0 ; i < 10; i++)
+		{
+			for (int j = 0 ; j < 10; j++)
+			{
+				std::cout << world_map[i][j] << " ";
+			}
+			std::cout << std::endl;
+		}*/
+	}
 
 	//std::cout << "pcl size " << pcl_cloud.points.size() << std::endl;
 
+}
+void mini_SLAM::scan_matcher()
+{
+	// for scan matching we only check one cell forward, and 90 degree rotation left and 90 degree rotation right
+	//first we should extract the local map
+
+	int** local_map = new int*[5];
+	for (int i = 0 ; i < 5 ; i++)
+		local_map[i] = new int[5];
+
+	for (int i = 0; i < 5 ; i++)
+	{
+		for (int j = 0; j < 5 ; j++)
+			local_map[i][j] = -1;
+	}
+	local_map[2][2] = 0; //robot_pose
+   	
+   	int localmap_min_x = std::max(robot_x - 2, 0);
+	int localmap_min_y = std::max(robot_y - 2, 0);
+	int localmap_max_x = std::min(robot_x + 2, 9);
+	int localmap_max_y = std::min(robot_y + 2, 9);
+
+	for (int i = localmap_min_x ; i <= localmap_max_x ; i++)
+	{
+		for (int j = localmap_min_y; j <= localmap_max_y; j++)
+		{
+			local_map[i - localmap_min_x][j - localmap_min_y] = world_map[i][j];
+		}
+	}
+
+	std::cout << "================== local map =============" << std::endl;
+	for (int i = 0; i < 5; i++)
+	{
+		for (int j = 0; j < 5; j++)
+		{
+			std::cout << local_map[i][j] << " ";
+		}
+		std::cout << std::endl;
+	}
+
+	if (robot_orientation.second == -1) //we should turn the local map 90 degree clock wise for simpler scan matching
+	{
+		turn_local_map(local_map);
+	}
+	if (robot_orientation.first == 1) //we should turn the local map 180 degree clock wise
+	{
+		for (int i=0; i < 2 ; i++)
+			turn_local_map(local_map);
+	}
+	if (robot_orientation.second == 1) //we should turn the local map 270 degree clock wise
+	{
+		for (int i=0; i < 3 ; i++)
+			turn_local_map(local_map);
+	}
+		
+	//check moving forward: in this case, the top two rows of local map should be compared with the bottom two rows of current sensor reading
+	int match_forward = 0;
+	for (int i = 1 ; i < 3; i++)
+	{
+		for (int j = 0 ; j < 5; j++)
+		{
+			if (current_sensor_reading[i][j] != -1 && local_map[i-1][j] != -1)
+			{
+				(current_sensor_reading[i][j] - local_map[i-1][j]) == 0 ? match_forward++ : match_forward--;
+			}
+		}
+	}
+
+	// turn left 90 degree
+
+	int match_turn_left = 0;
+	for (int i = 0 ; i < 3; i++)
+	{
+		for (int j = 0 ; j < 5; j++)
+		{
+			if (current_sensor_reading[i][j] != -1 && local_map[4-j][i] != -1)
+			{
+				(current_sensor_reading[i][j] - local_map[4-j][i]) == 0 ? match_turn_left++ : match_turn_left--;
+			}
+		}
+	}
+
+	// turn right 90 degree
+
+	int match_turn_right = 0;
+	for (int i = 0 ; i < 3; i++)
+	{
+		for (int j = 0 ; j < 5; j++)
+		{
+			if (current_sensor_reading[i][j] != -1 && local_map[j][4-i] != -1)
+			{
+				(current_sensor_reading[i][j] - local_map[j][4-i]) == 0 ? match_turn_right++ : match_turn_right--;
+			}
+		}
+	}
+
+	std::cout << "costs " << match_forward << " " << match_turn_left << " " << match_turn_right << std::endl;
+
+}
+
+void mini_SLAM::turn_local_map(int** local_map)
+{
+	for (int i = 0; i < 2; i++)
+	{
+		for (int j = 0; j <= 2; j++)
+		{
+			int temp = local_map[i][j];
+			local_map[i][j] = local_map[4-j][i];
+			local_map[4-j][i] = local_map[4-i][4-j];
+			local_map[4-i][4-j] = local_map[j][4-i];
+			local_map[j][4-i] = temp;
+		}
+	}
+/*	std::cout << "================== turned local map =============" << std::endl;
+	for (int i = 0; i < 5; i++)
+	{
+		for (int j = 0; j < 5; j++)
+		{
+			std::cout << local_map[i][j] << " ";
+		}
+		std::cout << std::endl;
+	}*/
 }
