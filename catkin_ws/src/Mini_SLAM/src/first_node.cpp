@@ -52,7 +52,7 @@ public:
 		robot_orientation.second = 0; 
 
 		//initializing the publisher
-		pointcloud_pub = nh.advertise<sensor_msgs::PointCloud2>("cloud", 1000);
+		pointcloud_pub = nh.advertise<sensor_msgs::PointCloud2>("cloud", 100);
 	}
     
     void run();
@@ -109,6 +109,8 @@ void robot_world::run()
 		create_publish_pointcloud(min_cover_x, max_cover_x, min_cover_y, max_cover_y);
 		update_robot_pose();
 		loop_rate.sleep();
+
+
 	    
     }
 
@@ -177,6 +179,9 @@ void robot_world::create_publish_pointcloud(int min_x, int max_x, int min_y, int
   	cloud->is_dense = false;
 
 	pcl::toROSMsg(*cloud, current_pointcloud);
+	while (pointcloud_pub.getNumSubscribers() < 1) //just to make sure subscriber in not loosing the first msg
+	{}
+
 	pointcloud_pub.publish(current_pointcloud);
 
 }
