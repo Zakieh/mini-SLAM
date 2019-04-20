@@ -168,7 +168,6 @@ void robot_world::create_publish_pointcloud(int min_x, int max_x, int min_y, int
 					}
 					cloud->push_back(obstacle);
 					count_obstacles++;
-					std::cout << "obstacle " << obstacle.x << " " << obstacle.y << std::endl; 
 				}
 			} 
 		}
@@ -213,6 +212,5 @@ void robot_world::update_robot_pose()
 		robot_y = robot_y + robot_orientation.second;
 	}
 
-	std::cout << "robot pose " << robot_x << " " << robot_y << std::endl;
 
 }

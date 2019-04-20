@@ -1,0 +1,7 @@
+This package provide tha algorithm for Mini_SLAM
+
+For running:
+cd catkin_ws
+catkin_make
+source devel/setup.bash
+roslaunch Mini_SLAM run.launch

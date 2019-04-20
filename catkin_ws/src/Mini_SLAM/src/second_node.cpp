@@ -105,6 +105,7 @@ void mini_SLAM::detect_loop()
 
 	int current_sensor_index = 0;
 
+
 	ros::Rate loop_rate(1);
 	while (ros::ok())
 	{
@@ -119,6 +120,9 @@ void mini_SLAM::detect_loop()
 			local_map[2][2] = 0; //robot_pose
 		   	
 		   	int sensor_to_check[3][5];
+		   	int robot_x_pose_under_check;
+		   	int robot_y_pose_under_check;
+
 		   	
 		   	{
 		   		unique_lock<mutex> lock(map_pose_update);
@@ -148,6 +152,9 @@ void mini_SLAM::detect_loop()
 	   					break;
 	   			}
 		   		
+	   			robot_x_pose_under_check = robot_x;
+	   			robot_y_pose_under_check = robot_y;
+
 
 			   	int localmap_min_x = std::max(robot_x - 2, 0);
 				int localmap_min_y = std::max(robot_y - 2, 0);
@@ -190,7 +197,7 @@ void mini_SLAM::detect_loop()
 			}
 
 			if (max_similarity_score >= 14)
-				std::cout << "loop closure detected" << std::endl;
+				std::cout << "loop closure detected at " << robot_x_pose_under_check << " " << robot_y_pose_under_check << std::endl;
 			
 			
 		}

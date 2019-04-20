@@ -1,0 +1,7 @@
+ <launch>
+
+ 	<node pkg="Mini_SLAM" type="Mini_SLAM_first_node" name="Mini_SLAM_first_node" output="screen"/>
+ 	<node pkg="Mini_SLAM" type="Mini_SLAM_second_node" name="Mini_SLAM_second_node" output="screen"/>
+
+</launch>
+
